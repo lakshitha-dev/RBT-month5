@@ -1,0 +1,109 @@
+apiVersion: 1
+
+# Grafana-managed alerts → webhook (Slack / Discord / Teams incoming webhook, set ALERT_WEBHOOK_URL in .env).
+# The same conditions also exist as Prometheus rules (monitoring/prometheus/alerts.yml).
+
+contactPoints:
+  - orgId: 1
+    name: blogflow-webhook
+    receivers:
+      - uid: blogflow-webhook
+        type: webhook
+        settings:
+          url: $ALERT_WEBHOOK_URL
+          httpMethod: POST
+
+policies:
+  - orgId: 1
+    receiver: blogflow-webhook
+    group_by: [alertname]
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h
+
+groups:
+  - orgId: 1
+    name: blogflow-availability
+    folder: BlogFlow
+    interval: 1m
+    rules:
+      - uid: blogflow-backend-down
+        title: BackendDown
+        condition: C
+        for: 1m
+        noDataState: Alerting
+        execErrState: Error
+        labels:
+          severity: critical
+        annotations:
+          summary: BlogFlow API is not being scraped successfully
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: min(up{job=~"blogflow-api.*"})
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+
+      - uid: blogflow-high-error-rate
+        title: HighErrorRate
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: More than 5% of API requests return 5xx
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: (sum(rate(http_requests_total{status=~"5.."}[5m])) or vector(0)) / clamp_min(sum(rate(http_requests_total[5m])), 1e-9)
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.05] }
+
+      - uid: blogflow-high-latency
+        title: HighLatencyP95
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: API p95 latency above 500ms
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{route!~"/health.*|/metrics"}[5m])))
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.5] }

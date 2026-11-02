@@ -1,0 +1,59 @@
+groups:
+  - name: blogflow
+    rules:
+      - alert: BackendDown
+        expr: up{job=~"blogflow-api.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "BlogFlow API is down ({{ $labels.env }})"
+          description: "Prometheus has not been able to scrape {{ $labels.instance }} for over 1 minute."
+
+      - alert: HighErrorRate
+        expr: |
+          sum by (env) (rate(http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum by (env) (rate(http_requests_total[5m])), 1e-9) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "5xx error rate above 5% ({{ $labels.env }})"
+          description: "{{ $value | humanizePercentage }} of requests are failing."
+
+      - alert: HighLatencyP95
+        expr: |
+          histogram_quantile(0.95, sum by (le, env) (rate(http_request_duration_seconds_bucket{route!~"/health.*|/metrics"}[5m]))) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 latency above 500ms ({{ $labels.env }})"
+          description: "p95 is {{ $value | humanizeDuration }}."
+
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes{job=~"blogflow-api.*"} > 400 * 1024 * 1024
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API resident memory above 400MB"
+          description: "RSS is {{ $value | humanize1024 }}B on {{ $labels.instance }}."
+
+      - alert: DatabaseDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is unreachable"
+          description: "postgres-exporter cannot connect to the database."
+
+      - alert: DbPoolSaturated
+        expr: db_pool_connections{state="waiting"} > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Requests are waiting for a DB connection"
+          description: "{{ $value }} queries queued for a pool connection on {{ $labels.instance }}."
