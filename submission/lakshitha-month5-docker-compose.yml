@@ -1,0 +1,165 @@
+# BlogFlow — local production-like stack
+#
+#   cp .env.example .env              # then set JWT_SECRET etc.
+#   docker compose up --build -d      # app:  http://localhost:8080
+#   docker compose --profile monitoring up -d
+#                                     # + Grafana http://localhost:3001, Prometheus :9090
+#
+# Request path: browser → frontend (nginx :80) → /api/* → backend (:3000) → db (:5432)
+
+name: blogflow
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ---------------------------------------------------------------- app
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-blogflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-blogflow}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [app-network]
+    logging: *default-logging
+
+  backend:
+    build:
+      context: ./backend
+      target: runtime
+    image: blogflow-api:local
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://${POSTGRES_USER:-blogflow}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-blogflow}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-1000}
+      TRUST_PROXY: 1
+      RUN_MIGRATIONS: "true"
+    ports:
+      - "3000:3000"   # exposed for debugging / Swagger at http://localhost:3000/api-docs
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health/ready"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    networks: [app-network]
+    logging: *default-logging
+
+  frontend:
+    build:
+      context: ./frontend
+    image: blogflow-web:local
+    restart: unless-stopped
+    environment:
+      API_UPSTREAM: http://backend:3000
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [app-network]
+    logging: *default-logging
+
+  # --------------------------------------------------------- monitoring
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: [monitoring]
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-lifecycle
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks: [app-network, monitoring]
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.17.1
+    profiles: [monitoring]
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-blogflow}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-blogflow}?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [app-network]
+
+  loki:
+    image: grafana/loki:3.5.3
+    profiles: [monitoring]
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki.yml
+    volumes:
+      - ./monitoring/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    networks: [monitoring]
+
+  # ships every container's stdout (JSON logs) to Loki
+  alloy:
+    image: grafana/alloy:v1.10.1
+    profiles: [monitoring]
+    restart: unless-stopped
+    command: run --server.http.listen-addr=0.0.0.0:12345 --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
+    volumes:
+      - ./monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "12345:12345"
+    depends_on: [loki]
+    networks: [monitoring]
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    profiles: [monitoring]
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      # read-only anonymous viewing (handy for screenshots/kiosk); off by default
+      GF_AUTH_ANONYMOUS_ENABLED: ${GRAFANA_ANONYMOUS:-false}
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/blogflow.json
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-http://localhost:9/disabled}
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on: [prometheus, loki]
+    networks: [monitoring]
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  loki_data:
+  grafana_data:
+
+networks:
+  app-network:
+    driver: bridge
+  monitoring:
+    driver: bridge
