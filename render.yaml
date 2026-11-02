@@ -1,0 +1,69 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Dashboard → New → Blueprint → pick this repo. See docs/08-deployment-render.md.
+#
+# Both web services run the images CI pushes to GHCR. CI's deploy job then calls each
+# service's deploy hook with ?imgURL=…:sha-<commit>, so production always runs an exact build.
+#
+# Images: ghcr.io/lakshitha-dev/* (GitHub user, lowercase). Change if you push elsewhere.
+
+services:
+  - type: web
+    name: blogflow-api
+    runtime: image
+    image:
+      url: ghcr.io/lakshitha-dev/blogflow-api:latest
+      # only needed if the GHCR package is private:
+      # creds:
+      #   fromRegistryCreds:
+      #     name: ghcr
+    plan: free
+    region: singapore
+    healthCheckPath: /health/ready
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: blogflow-db
+          property: connectionString   # internal URL (same region, private network)
+      - key: DB_SSL
+        value: "false"                 # set "true" if you switch to the external URL
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 24h
+      - key: LOG_LEVEL
+        value: info
+      - key: RUN_MIGRATIONS
+        value: "true"
+      # client → Render edge → nginx (blogflow-web) → Render edge → API
+      - key: TRUST_PROXY
+        value: "3"
+      - key: RATE_LIMIT_MAX
+        value: "300"
+      - key: CORS_ORIGIN
+        value: https://blogflow-web.onrender.com
+      # bearer token Prometheus uses to scrape /metrics (copy it from the dashboard)
+      - key: METRICS_TOKEN
+        generateValue: true
+
+  - type: web
+    name: blogflow-web
+    runtime: image
+    image:
+      url: ghcr.io/lakshitha-dev/blogflow-web:latest
+    plan: free
+    region: singapore
+    healthCheckPath: /healthz
+    envVars:
+      # public HTTPS URL of blogflow-api (check the actual hostname in the Render dashboard)
+      - key: API_UPSTREAM
+        value: https://blogflow-api.onrender.com
+
+databases:
+  - name: blogflow-db
+    plan: free
+    region: singapore
+    databaseName: blogflow
+    user: blogflow
+    postgresMajorVersion: "16"
