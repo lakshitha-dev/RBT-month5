@@ -84,12 +84,16 @@ role, GitHub secrets and variables) and reports each one; it needs Owner on the 
 az identity create -n blogflow-github-deploy -g blogflow-rg
 az identity federated-credential create -g blogflow-rg --identity-name blogflow-github-deploy \
   --name github-production --issuer https://token.actions.githubusercontent.com \
-  --subject repo:lakshitha-dev/RBT-month5:environment:production \
+  --subject 'repo:lakshitha-dev@136619138/RBT-month5@1442658985:environment:production' \
   --audiences api://AzureADTokenExchange
 az role assignment create --role Contributor \
   --assignee-object-id <identity principalId> --assignee-principal-type ServicePrincipal \
   --scope $(az group show -n blogflow-rg --query id -o tsv)
 ```
+
+> The subject must match the token GitHub sends exactly. GitHub identifies the repo by immutable IDs
+> (`repo:<owner>@<ownerId>/<repo>@<repoId>:…`); `gh api repos/<owner>/<repo>` shows both IDs, and a
+> failed `azure/login` prints the subject it presented (error AADSTS700213).
 
 GitHub → Settings → Secrets and variables → Actions:
 

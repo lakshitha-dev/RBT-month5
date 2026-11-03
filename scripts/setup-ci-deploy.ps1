@@ -20,10 +20,16 @@ $rgId = az group show -n $ResourceGroup --query id -o tsv; Check 'find resource 
 $id = az identity create -n blogflow-github-deploy -g $ResourceGroup --query '{clientId:clientId, principalId:principalId, tenantId:tenantId}' -o json | ConvertFrom-Json
 Check 'managed identity blogflow-github-deploy'
 
+# GitHub's OIDC subject names the repo by immutable IDs: repo:<owner>@<ownerId>/<repo>@<repoId>:environment:<env>
+$gh = @(gh api "repos/$Repo" --jq '.owner.login, .owner.id, .name, .id')   # 4 lines; no quotes inside (PowerShell 5.1 strips them)
+Check 'look up GitHub IDs'
+$subject = "repo:$($gh[0])@$($gh[1])/$($gh[2])@$($gh[3]):environment:production"
+Write-Host "   OIDC subject: $subject"
+
 az identity federated-credential create -g $ResourceGroup --identity-name blogflow-github-deploy --name github-production `
-  --issuer https://token.actions.githubusercontent.com --subject "repo:${Repo}:environment:production" `
+  --issuer https://token.actions.githubusercontent.com --subject $subject `
   --audiences api://AzureADTokenExchange -o none
-Check "trust GitHub OIDC for repo:${Repo}:environment:production"
+Check "trust GitHub OIDC for $subject"
 
 # a new identity can take a few seconds to reach the directory
 for ($i = 1; $i -le 6; $i++) {
