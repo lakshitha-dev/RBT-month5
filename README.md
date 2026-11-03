@@ -4,6 +4,17 @@ The Month 2 BlogFlow API plus a new React SPA, containerised with Docker, built 
 GitHub Actions to Azure Container Apps (database on Neon), and observed with Prometheus, Grafana and Loki.
 
 **Live:** https://blogflow-web.jollymeadow-32aadaf0.southeastasia.azurecontainerapps.io
+· [![CI/CD](https://github.com/lakshitha-dev/RBT-month5/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/lakshitha-dev/RBT-month5/actions/workflows/ci-cd.yml)
+
+## Month 5 submission
+
+| Deliverable | File |
+|-------------|------|
+| Dockerfiles | [`submission/lakshitha-month5-dockerfiles/`](submission/lakshitha-month5-dockerfiles/) |
+| Docker Compose | [`submission/lakshitha-month5-docker-compose.yml`](submission/lakshitha-month5-docker-compose.yml) |
+| CI/CD pipeline | [`submission/lakshitha-month5-github-workflow.yml`](submission/lakshitha-month5-github-workflow.yml) (runs from [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml)) |
+| Production URL | [`submission/lakshitha-month5-deployment-url.md`](submission/lakshitha-month5-deployment-url.md) |
+| Monitoring dashboard | [`submission/lakshitha-month5-monitoring.png`](submission/lakshitha-month5-monitoring.png) |
 
 ```
 Browser ─HTTPS─▶ nginx (SPA + /api proxy) ─▶ Express API ─▶ PostgreSQL
