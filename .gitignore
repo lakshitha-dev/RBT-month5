@@ -12,3 +12,6 @@ Thumbs.db
 .idea/
 monitoring/prometheus/prod-token
 .specclaw/
+
+# neonctl context (project id)
+.neon

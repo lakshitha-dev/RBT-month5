@@ -23,10 +23,12 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
-  # --- production (Render) ------------------------------------------------
-  # 1. set METRICS_TOKEN on the blogflow-api service in Render
-  # 2. write the same token to monitoring/prometheus/prod-token (gitignored)
-  # 3. uncomment, set your API host, then: curl -X POST localhost:9090/-/reload
+  # --- production (Azure Container Apps) ----------------------------------
+  # 1. the API's METRICS_TOKEN is a Container Apps secret:
+  #      az containerapp secret show -n blogflow-api -g blogflow-rg --secret-name metrics-token --query value -o tsv
+  # 2. write it to monitoring/prometheus/prod-token (gitignored)
+  # 3. uncomment, then: curl -X POST localhost:9090/-/reload
+  # NB: scraping keeps the scale-to-zero API awake (billed as active time) - enable while demoing.
   #
   # - job_name: blogflow-api-prod
   #   scheme: https
@@ -34,6 +36,6 @@ scrape_configs:
   #   authorization:
   #     credentials_file: /etc/prometheus/prod-token
   #   static_configs:
-  #     - targets: ["blogflow-api.onrender.com"]
+  #     - targets: ["blogflow-api.jollymeadow-32aadaf0.southeastasia.azurecontainerapps.io"]
   #       labels:
   #         env: production

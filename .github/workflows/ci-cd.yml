@@ -155,14 +155,19 @@ jobs:
 
   # ---------------------------------------------------------------- deploy
   deploy:
-    name: Deploy · Render (production)
+    name: Deploy · Azure Container Apps (production)
     needs: docker
-    # skipped until the Render URLs are configured as repository variables (see docs/07-cicd.md)
+    # skipped until the production URLs are configured as repository variables (see docs/07-cicd.md)
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.API_URL != ''
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # GitHub OIDC token → Azure managed identity (no stored password)
     environment:
       name: production
       url: ${{ vars.FRONTEND_URL }}
+    env:
+      RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'blogflow-rg' }}
     steps:
       - name: Resolve image tags
         id: img
@@ -172,15 +177,23 @@ jobs:
           echo "api=${{ env.REGISTRY }}/$OWNER/blogflow-api:sha-$SHA" >> "$GITHUB_OUTPUT"
           echo "web=${{ env.REGISTRY }}/$OWNER/blogflow-web:sha-$SHA" >> "$GITHUB_OUTPUT"
 
-      # deploy hooks with ?imgURL= roll the service to that exact immutable image
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install Container Apps CLI extension
+        run: az extension add --name containerapp --upgrade --only-show-errors
+
+      # roll each app to the exact immutable sha-<commit> image built above
       - name: Deploy API
-        run: |
-          curl -fsS -X POST "${{ secrets.RENDER_BACKEND_DEPLOY_HOOK }}&imgURL=$(jq -rn --arg u '${{ steps.img.outputs.api }}' '$u|@uri')"
+        run: az containerapp update -n blogflow-api -g "$RESOURCE_GROUP" --image '${{ steps.img.outputs.api }}' -o none
 
       - name: Wait for API to report the new version
         run: |
           for i in $(seq 1 40); do
-            v=$(curl -fsS "${{ vars.API_URL }}/health" | jq -r '.version // empty' || true)
+            v=$(curl -fsS --max-time 60 "${{ vars.API_URL }}/health" | jq -r '.version // empty' || true)
             echo "attempt $i: version=$v"
             [ "$v" = "sha-${{ github.sha }}" ] && exit 0
             sleep 15
@@ -188,8 +201,7 @@ jobs:
           echo "::error::API did not become healthy on the new version" && exit 1
 
       - name: Deploy frontend
-        run: |
-          curl -fsS -X POST "${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK }}&imgURL=$(jq -rn --arg u '${{ steps.img.outputs.web }}' '$u|@uri')"
+        run: az containerapp update -n blogflow-web -g "$RESOURCE_GROUP" --image '${{ steps.img.outputs.web }}' -o none
 
       - name: Smoke test production
         run: |

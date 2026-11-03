@@ -2,7 +2,7 @@
 // Generates realistic mixed traffic so the Grafana dashboard has something to show.
 //
 //   node scripts/load-test.mjs                         # local stack, 2 minutes
-//   node scripts/load-test.mjs https://blogflow-web.onrender.com 60
+//   node scripts/load-test.mjs https://blogflow-web.jollymeadow-32aadaf0.southeastasia.azurecontainerapps.io 60
 //
 // Mix: reads (most traffic), authenticated writes, plus deliberate 401/404/422s.
 
