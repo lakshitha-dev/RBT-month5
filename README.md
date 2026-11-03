@@ -1,7 +1,9 @@
 # BlogFlow — Month 5: DevOps & Production Deployment
 
 The Month 2 BlogFlow API plus a new React SPA, containerised with Docker, built and deployed by
-GitHub Actions to Render, and observed with Prometheus, Grafana and Loki.
+GitHub Actions to Azure Container Apps (database on Neon), and observed with Prometheus, Grafana and Loki.
+
+**Live:** https://blogflow-web.jollymeadow-32aadaf0.southeastasia.azurecontainerapps.io
 
 ```
 Browser ─HTTPS─▶ nginx (SPA + /api proxy) ─▶ Express API ─▶ PostgreSQL
@@ -14,9 +16,9 @@ Browser ─HTTPS─▶ nginx (SPA + /api proxy) ─▶ Express API ─▶ Postgr
 |---|---|
 | **Frontend** | React 19 + Vite + TypeScript, served by nginx (`frontend/`) |
 | **Backend** | Node 22 + Express, `pg`, JWT, winston, prom-client (`backend/`) |
-| **Database** | PostgreSQL 16 |
-| **CI/CD** | GitHub Actions → GHCR → Render deploy hooks (`.github/workflows/ci-cd.yml`) |
-| **Hosting** | Render (`render.yaml`), automatic HTTPS |
+| **Database** | PostgreSQL 16 (local) · Neon serverless Postgres (production) |
+| **CI/CD** | GitHub Actions → GHCR → Azure Container Apps via OIDC (`.github/workflows/ci-cd.yml`) |
+| **Hosting** | Azure Container Apps, automatic HTTPS (`render.yaml` kept as an alternative) |
 | **Monitoring** | Prometheus, Grafana, Loki, Alloy, postgres-exporter (`monitoring/`) |
 
 ## Quick start
@@ -48,7 +50,7 @@ frontend/                 React SPA, Dockerfile, nginx template
 monitoring/               Prometheus (scrape + alert rules), Grafana (provisioning + dashboard), Loki, Alloy
 .github/workflows/        CI/CD pipeline
 docker-compose.yml        app stack + `monitoring` profile
-render.yaml               Render Blueprint (API, web, Postgres)
+render.yaml               Render Blueprint (alternative host)
 scripts/                  load test, submission packaging
 docs/                     session material + architecture, setup, CI/CD, deployment, monitoring guides
 submission/               lakshitha-month5-* deliverables
@@ -69,7 +71,7 @@ submission/               lakshitha-month5-* deliverables
 | `CORS_ORIGIN` | backend | `*` | Allowed origins (comma-separated) |
 | `METRICS_TOKEN` | backend | — | Bearer token required for `/metrics` when set |
 | `API_UPSTREAM` | frontend | `http://backend:3000` | Where nginx proxies `/api` |
-| `PORT` | both | 3000 / 80 | Listen port (Render injects it) |
+| `PORT` | both | 3000 / 80 | Listen port |
 
 ## Documentation
 
@@ -77,7 +79,7 @@ Start at [docs/README.md](docs/README.md):
 [architecture](docs/05-architecture.md) ·
 [local setup](docs/06-local-setup.md) ·
 [CI/CD](docs/07-cicd.md) ·
-[deployment](docs/08-deployment-render.md) ·
+[deployment](docs/08-deployment-azure.md) ·
 [monitoring](docs/09-monitoring.md)
 
 ## Deliverables

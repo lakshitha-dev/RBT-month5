@@ -3,7 +3,7 @@
 ## Runtime topology
 
 ```
-                         ┌──────────────────────── docker compose / Render ────────────────────────┐
+                         ┌───────────────── docker compose / Azure Container Apps ──────────────────┐
                          │                                                                          │
  Browser ──HTTPS──▶  frontend (nginx:alpine)                                                        │
                          │  • serves the React SPA (static, hashed assets cached 1y)                │
@@ -13,7 +13,7 @@
                          │                                     │  • /metrics (Prometheus)           │
                          │                                     ▼                                    │
                          │                              db (PostgreSQL 16)                          │
-                         │                              named volume / Render managed DB            │
+                         │                              named volume / Neon Postgres (prod)         │
                          └──────────────────────────────────────────────────────────────────────────┘
 
  monitoring profile (local):
@@ -29,9 +29,9 @@ production (only `API_UPSTREAM` changes).
 
 | Component | Image | Port | Notes |
 |-----------|-------|------|-------|
-| frontend | `blogflow-web` (nginx 1.29 alpine) | 80 (`PORT` on Render) | Multi-stage: Vite build in `node:22-alpine`, only `dist/` shipped |
+| frontend | `blogflow-web` (nginx 1.29 alpine) | 80 | Multi-stage: Vite build in `node:22-alpine`, only `dist/` shipped |
 | backend | `blogflow-api` (node 22 alpine) | 3000 (`PORT`) | Non-root `node` user, prod deps only, npm removed, migrations on boot |
-| db | `postgres:16-alpine` | 5432 (internal only) | Named volume `postgres_data`; Render managed Postgres in prod |
+| db | `postgres:16-alpine` | 5432 (internal only) | Named volume `postgres_data`; Neon serverless Postgres (TLS) in prod |
 | prometheus | `prom/prometheus` | 9090 | 15s scrape, 7d retention, alert rules |
 | grafana | `grafana/grafana` | 3001 | Provisioned datasources, dashboard, alert rules |
 | loki | `grafana/loki` | 3100 (internal) | Log storage, 7d retention |
@@ -65,6 +65,6 @@ applied) → `frontend`. Each uses `depends_on: condition: service_healthy`.
 | Endpoint | Checks | Used by |
 |----------|--------|---------|
 | `GET /health/live` | process is serving | Docker `HEALTHCHECK` |
-| `GET /health/ready` | DB `SELECT 1` | compose healthcheck, Render health check (gates zero-downtime deploys) |
+| `GET /health/ready` | DB `SELECT 1` | compose healthcheck, CI deploy gate |
 | `GET /health` | DB + latency, memory, uptime, version | humans, SPA status page, CI smoke test |
-| `GET /healthz` (frontend) | nginx serving | frontend Docker `HEALTHCHECK`, Render |
+| `GET /healthz` (frontend) | nginx serving | frontend Docker `HEALTHCHECK`, CI smoke test |

@@ -11,7 +11,7 @@ RUN npm run build
 # ---- runtime: static files + reverse proxy, no Node in the final image ----
 FROM nginx:1.29-alpine AS runtime
 
-# defaults for docker compose; Render overrides them
+# defaults for docker compose; the cloud host overrides them
 # (NGINX_RESOLVER is derived from /etc/resolv.conf by 15-resolver.envsh)
 ENV PORT=80 \
     API_UPSTREAM=http://backend:3000 \

@@ -4,9 +4,9 @@
 
 | Signal | Source | Pipeline | Where to look |
 |--------|--------|----------|---------------|
-| **Logs** | winston JSON on stdout (one line per request + errors with stack) | Docker → Alloy → Loki | Grafana logs panels / Explore; Render → Logs in prod |
+| **Logs** | winston JSON on stdout (one line per request + errors with stack) | Docker → Alloy → Loki | Grafana logs panels / Explore; `az containerapp logs show` in prod |
 | **Metrics** | `prom-client` at `GET /metrics`, postgres-exporter | Prometheus (15s scrape) | Grafana dashboard |
-| **Health** | `/health`, `/health/live`, `/health/ready`, `/healthz` | Docker HEALTHCHECK, compose, Render, CI | `docker compose ps`, SPA `/status`, Render events |
+| **Health** | `/health`, `/health/live`, `/health/ready`, `/healthz` | Docker HEALTHCHECK, compose, Container Apps, CI | `docker compose ps`, SPA `/status`, CI smoke test |
 
 ## Log format
 
@@ -68,14 +68,21 @@ Test it: `docker compose stop backend` → BackendDown fires after ~1–2 min �
 
 ## Monitoring production
 
-1. Copy `METRICS_TOKEN` from Render (blogflow-api → Environment) into
-   `monitoring/prometheus/prod-token` (gitignored).
-2. Uncomment the `blogflow-api-prod` job in `monitoring/prometheus/prometheus.yml`, set the host.
+1. Save the API's `METRICS_TOKEN` (a Container Apps secret) into `monitoring/prometheus/prod-token` (gitignored):
+   `az containerapp secret show -n blogflow-api -g blogflow-rg --secret-name metrics-token --query value -o tsv`
+2. Uncomment the `blogflow-api-prod` job in `monitoring/prometheus/prometheus.yml`.
+   Scraping keeps the scale-to-zero API awake, so enable it while demoing rather than permanently.
 3. `curl -X POST http://localhost:9090/-/reload`
 4. Select `production` in the dashboard's Environment dropdown.
 
-Production logs: Render → blogflow-api → **Logs** (JSON lines, searchable). Render log streams
-can forward to any syslog/Loki/Datadog endpoint (Workspace → Log Streams).
+Production logs (JSON lines, live stream):
+
+```bash
+az containerapp logs show -n blogflow-api -g blogflow-rg --type console --follow
+```
+
+For retained, searchable logs attach a Log Analytics workspace to `blogflow-env`, or ship them to
+Grafana Cloud Loki; neither is enabled to keep production at ~$0/month.
 
 ## Screenshot for submission
 

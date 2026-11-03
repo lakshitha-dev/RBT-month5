@@ -18,7 +18,7 @@ const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
-// number of proxy hops in front of the API (nginx locally; Render LB + nginx + Render LB in prod)
+// number of proxy hops in front of the API (nginx locally; ingress + nginx + ingress in prod)
 // — needed for correct client IPs in rate limiting
 const trustProxy = process.env.TRUST_PROXY || '1';
 app.set('trust proxy', /^\d+$/.test(trustProxy) ? parseInt(trustProxy) : trustProxy === 'true');

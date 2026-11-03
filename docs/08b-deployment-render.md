@@ -1,4 +1,10 @@
-# Production Deployment — Render
+# Alternative Deployment — Render
+
+> Production actually runs on **Azure Container Apps + Neon** — see
+> [08-deployment-azure.md](08-deployment-azure.md). Render was the original plan, but it now
+> requires a card on file to create services via its API/CLI. This guide and `render.yaml`
+> remain a working alternative; to use it, swap the `deploy` job back to Render deploy hooks
+> (`curl -X POST "$RENDER_DEPLOY_HOOK&imgURL=<image>"`).
 
 Render was chosen for the free tier, automatic HTTPS, managed Postgres and health-check-gated
 zero-downtime deploys. Images are built once in CI, pushed to GHCR and Render pulls the exact

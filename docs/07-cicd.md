@@ -13,9 +13,10 @@ push / PR
                          PR → build only     main/develop → push to ghcr.io
                          ▼
                    deploy  (main only, GitHub "production" environment)
-                         Render deploy hook ?imgURL=…:sha-<short>  (API)
+                         azure/login via OIDC (managed identity, no stored password)
+                         az containerapp update --image …:sha-<short>  (API)
                          wait until /health reports the new version
-                         Render deploy hook (frontend)
+                         az containerapp update --image …:sha-<short>  (frontend)
                          smoke test: /healthz, /api/health, /api/posts
 ```
 
@@ -45,28 +46,32 @@ how the deploy job knows the new version is live.
 
 | Kind | Name | Value |
 |------|------|-------|
-| Secret | `RENDER_BACKEND_DEPLOY_HOOK` | Render → blogflow-api → Settings → Deploy Hook |
-| Secret | `RENDER_FRONTEND_DEPLOY_HOOK` | Render → blogflow-web → Settings → Deploy Hook |
-| Variable | `API_URL` | e.g. `https://blogflow-api.onrender.com` |
-| Variable | `FRONTEND_URL` | e.g. `https://blogflow-web.onrender.com` |
-| Environment | `production` | optional: add required reviewers for a manual approval gate |
+| Secret | `AZURE_CLIENT_ID` | client id of the `blogflow-github-deploy` managed identity |
+| Secret | `AZURE_TENANT_ID` | Entra tenant id |
+| Secret | `AZURE_SUBSCRIPTION_ID` | subscription that holds `blogflow-rg` |
+| Variable | `API_URL` | `https://blogflow-api.<env-domain>.azurecontainerapps.io` |
+| Variable | `FRONTEND_URL` | `https://blogflow-web.<env-domain>.azurecontainerapps.io` |
+| Variable | `AZURE_RESOURCE_GROUP` | optional, defaults to `blogflow-rg` |
+| Environment | `production` | the federated credential trusts only this environment; optional required reviewers = manual approval gate |
 
-`GITHUB_TOKEN` (automatic) pushes to GHCR — the workflow requests `packages: write` for that job only.
+`GITHUB_TOKEN` (automatic) pushes to GHCR — the workflow requests `packages: write` for that job
+only. The deploy job requests `id-token: write` so GitHub can mint the OIDC token Azure trusts.
+Setup commands are in [08-deployment-azure.md](08-deployment-azure.md#3-ci--azure-oidc-no-stored-password).
 
 ## Rollback
 
 Re-deploy a previous immutable image:
 
 ```bash
-curl -X POST "$RENDER_BACKEND_DEPLOY_HOOK&imgURL=ghcr.io/<owner>/blogflow-api:sha-<previous>"
+az containerapp update -n blogflow-api -g blogflow-rg --image ghcr.io/<owner>/blogflow-api:sha-<previous>
 ```
 
-…or Render dashboard → service → Events → *Rollback*.
+…or re-run an older successful workflow run (Actions → run → *Re-run all jobs*).
 
 ## Improvements backlog (Pipeline Review)
 
 - Make Trivy blocking for CRITICAL once the baseline is clean; add CodeQL (SAST) and OWASP ZAP baseline (DAST) against a preview environment
-- Preview environments per PR (Render preview environments)
+- Preview environments per PR (a Container Apps revision with its own label per PR, or a Neon branch per PR)
 - Cache `node_modules` for Vitest/Jest across jobs; split integration tests into their own job
 - Sign images (cosign) and generate SBOMs (`docker/build-push-action` `sbom: true`)
 - Manual approval on the `production` environment

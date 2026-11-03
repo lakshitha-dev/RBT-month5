@@ -1,7 +1,7 @@
 const { Pool } = require('pg');
 const logger = require('./logger');
 
-// DATABASE_URL (Render, compose) wins; the DB_* vars keep the Month 2 local setup working
+// DATABASE_URL (compose, Neon in prod) wins; the DB_* vars keep the Month 2 local setup working
 const connection = process.env.DATABASE_URL
   ? { connectionString: process.env.DATABASE_URL }
   : {

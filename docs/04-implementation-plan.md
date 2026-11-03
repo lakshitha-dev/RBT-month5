@@ -16,9 +16,9 @@ build a new small React + Vite SPA in `frontend/` that consumes it.
 
 | Area | Choice |
 |------|--------|
-| Cloud | **Render** — image-backed web services pulled from GHCR, managed Postgres, automatic HTTPS |
+| Cloud | **Azure Container Apps** (Azure for Students) running the GHCR images, **Neon** serverless Postgres, automatic HTTPS. Originally planned on Render — see note below |
 | Registry | GitHub Container Registry (`ghcr.io`) |
-| CI/CD | GitHub Actions: test → build/push images → deploy hook → smoke test |
+| CI/CD | GitHub Actions: test → build/push images → `az containerapp update` via OIDC → smoke test |
 | Monitoring | Prometheus + Grafana + Loki + Grafana Alloy (docker-compose `monitoring` profile) |
 
 ## Repository layout
@@ -31,7 +31,7 @@ monitoring/                 prometheus / grafana / loki / alloy configs
 scripts/                    load test, submission packaging
 .github/workflows/ci-cd.yml CI/CD pipeline
 docker-compose.yml          app stack + monitoring profile
-render.yaml                 Render blueprint
+render.yaml                 Render blueprint (alternative host)
 submission/                 lakshitha-month5-* deliverables
 ```
 
@@ -49,13 +49,17 @@ submission/                 lakshitha-month5-* deliverables
 ### Part 2 — CI/CD
 - `backend-test` (lint + Jest with a Postgres service container), `frontend-test`
   (lint + Vitest + build), `docker` (matrix build/push to GHCR with GHA cache, Trivy scan),
-  `deploy` (Render deploy hooks pinned to the commit SHA image, then smoke tests).
+  `deploy` (OIDC login to Azure, `az containerapp update` pinned to the commit SHA image, then smoke tests).
 - PRs build images but never push or deploy.
 
-### Part 3 — Cloud deployment (Render)
-- `render.yaml` blueprint: `blogflow-db` (Postgres), `blogflow-api`, `blogflow-web`.
-- HTTPS is automatic on `*.onrender.com`; health-check-gated zero-downtime deploys and
-  auto-restart come from Render.
+### Part 3 — Cloud deployment (Azure Container Apps + Neon)
+- `blogflow-api` and `blogflow-web` container apps (consumption, scale 0–2) in `blogflow-rg`,
+  Southeast Asia; Postgres on Neon (Singapore) over TLS.
+- HTTPS is automatic on `*.azurecontainerapps.io`; auto-restart and revision-based rollouts come
+  from Container Apps. Details: [08-deployment-azure.md](08-deployment-azure.md).
+- **Change from the original plan:** Render (and Railway) required a card / paid plan for new
+  accounts to create services, so production moved to Azure. `render.yaml` remains as a
+  documented alternative ([08b-deployment-render.md](08b-deployment-render.md)).
 
 ### Part 4 — Monitoring
 - Structured JSON logs (winston) to stdout → Alloy → Loki.

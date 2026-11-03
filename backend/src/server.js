@@ -11,7 +11,7 @@ async function start() {
     process.exit(1);
   }
 
-  // run pending SQL migrations before taking traffic (Render free tier has no pre-deploy hook)
+  // run pending SQL migrations before taking traffic (no separate release step needed; an advisory lock serialises replicas)
   if (process.env.RUN_MIGRATIONS !== 'false') {
     await migrate();
   }
