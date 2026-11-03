@@ -15,3 +15,6 @@ monitoring/prometheus/prod-token
 
 # neonctl context (project id)
 .neon
+
+# taste-skill working files
+.taste-skill/

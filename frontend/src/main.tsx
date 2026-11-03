@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router'
 import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './auth.tsx'
+import { watchReveals } from './reveal'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -14,3 +15,5 @@ createRoot(document.getElementById('root')!).render(
     </BrowserRouter>
   </StrictMode>,
 )
+
+watchReveals()

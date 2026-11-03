@@ -11,9 +11,10 @@ export default defineConfig({
   css: { postcss: {} },
   server: {
     // mirror the nginx routing so `npm run dev` behaves like the container
+    // changeOrigin lets API_UPSTREAM point at a remote HTTPS API (host-routed ingress)
     proxy: {
-      '/api/health': { target: apiTarget, rewrite: () => '/health' },
-      '/api': apiTarget,
+      '/api/health': { target: apiTarget, changeOrigin: true, rewrite: () => '/health' },
+      '/api': { target: apiTarget, changeOrigin: true },
     },
   },
   test: {

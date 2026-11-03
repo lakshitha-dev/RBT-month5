@@ -39,7 +39,8 @@ describe('BlogFlow SPA', () => {
     renderAt('/');
     expect(await screen.findByText('Docker for Node.js')).toBeInTheDocument();
     expect(screen.getByText(/2 comments/)).toBeInTheDocument();
-    expect(String(fetchSpy.mock.calls[0][0])).toContain('published=true');
+    const postsCall = fetchSpy.mock.calls.map(([url]) => String(url)).find((url) => url.startsWith('/api/posts'));
+    expect(postsCall).toContain('published=true');
   });
 
   test('shows the API error message when loading fails', async () => {
