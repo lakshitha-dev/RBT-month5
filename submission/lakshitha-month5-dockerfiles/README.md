@@ -12,13 +12,43 @@ In the repository they live at:
 | `frontend.nginx.default.conf.template` | `frontend/nginx/default.conf.template` | nginx config: SPA fallback, `/api` reverse proxy (`API_UPSTREAM`), caching, security headers, `/healthz` |
 | `frontend.nginx.15-resolver.envsh` | `frontend/nginx/15-resolver.envsh` | Picks the container's DNS resolver for the proxy at startup |
 
+## Image sizes (published, compressed)
+
+| Image | Size | Base | What ships |
+|-------|------|------|------------|
+| `ghcr.io/lakshitha-dev/blogflow-api` | **64.8 MB** | `node:22-alpine` | production `node_modules` + `src/` + migrations; npm/corepack removed |
+| `ghcr.io/lakshitha-dev/blogflow-web` | **26.0 MB** | `nginx:1.29-alpine` | the built `dist/` and the nginx template only; no Node at all |
+
 ## Optimisations
 
 - **Multi-stage builds**: build tools, dev dependencies and sources never reach the runtime images
-- **Layer caching**: `package*.json` copied and installed before the source, plus BuildKit npm cache mounts
+- **Layer caching**: `package*.json` copied and installed before the source, plus BuildKit npm cache mounts;
+  CI reuses layers through the GitHub Actions cache
 - **Small bases**: Alpine everywhere; the frontend runtime has no Node at all
-- **Security**: non-root `node` user, npm removed from the API runtime, no secrets baked in (all config via env)
+- **Security**: non-root `node` user, npm removed from the API runtime, no secrets baked in (all config via env),
+  images scanned with Trivy in CI
 - **Orchestration-ready**: `HEALTHCHECK`s, exec-form `CMD` so SIGTERM reaches Node for graceful shutdown
+- **Testable**: `docker build --target test backend` runs lint + tests inside the image build
 
-Build: `docker compose build` from the repository root, or
-`docker build --target test backend` to run lint + tests inside the image build.
+## Compose (`lakshitha-month5-docker-compose.yml`)
+
+| Service | Image | Network(s) | Published port | Waits for |
+|---------|-------|------------|----------------|-----------|
+| `db` | `postgres:16-alpine` + named volume `postgres_data` | `app-network` | none (internal only) | — |
+| `backend` | built from `backend/` | `app-network` | 3000 (debugging) | `db` healthy |
+| `frontend` | built from `frontend/` | `app-network` | 8080 → 80 | `backend` healthy |
+| `prometheus`, `grafana`, `loki`, `alloy`, `postgres-exporter` | `monitoring` profile | `monitoring` (+ `app-network` to scrape) | 9090, 3001 | — |
+
+- Services reach each other by name on the private `app-network` bridge (`backend` → `db:5432`,
+  nginx → `backend:3000`); the database is never published to the host.
+- Secrets come from `.env` (gitignored); `JWT_SECRET` and `POSTGRES_PASSWORD` are required (`${VAR:?}`).
+- Every app service has a healthcheck, and `depends_on: condition: service_healthy` starts them in order.
+- Named volumes keep Postgres, Prometheus, Loki and Grafana data across restarts; logs are size-capped.
+
+## Run
+
+```bash
+cp .env.example .env                       # set POSTGRES_PASSWORD and JWT_SECRET
+docker compose up --build -d               # app on http://localhost:8080
+docker compose --profile monitoring up -d  # + Grafana on http://localhost:3001
+```

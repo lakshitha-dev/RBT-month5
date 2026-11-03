@@ -85,7 +85,8 @@ services:
     profiles: [monitoring]
     restart: unless-stopped
     command:
-      - --config.file=/etc/prometheus/prometheus.yml
+      # prometheus.prod.yml adds the production API and Neon (see docs/09-monitoring.md)
+      - --config.file=/etc/prometheus/${PROMETHEUS_CONFIG:-prometheus.yml}
       - --storage.tsdb.retention.time=7d
       - --web.enable-lifecycle
     volumes:
@@ -116,6 +117,14 @@ services:
       - loki_data:/loki
     networks: [monitoring]
 
+  # Neon (production) metrics for the dashboard's "production" view; opt-in with --profile production
+  postgres-exporter-prod:
+    image: prometheuscommunity/postgres-exporter:v0.17.1
+    profiles: [production]
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: ${PROD_DATABASE_URL:-}   # Neon URL with sslmode=require, in .env
+    networks: [monitoring]
   # ships every container's stdout (JSON logs) to Loki
   alloy:
     image: grafana/alloy:v1.10.1
@@ -127,6 +136,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
       - "12345:12345"
+      - "127.0.0.1:3500:3500"   # Loki push API for scripts/prod-logs-to-loki.mjs
     depends_on: [loki]
     networks: [monitoring]
 

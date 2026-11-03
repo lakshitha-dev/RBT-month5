@@ -42,7 +42,7 @@
 | 2 | docker-compose.yml | `submission/lakshitha-month5-docker-compose.yml` | ✅ |
 | 3 | CI/CD pipeline | `submission/lakshitha-month5-github-workflow.yml` | ✅ |
 | 4 | Production URL | `submission/lakshitha-month5-deployment-url.md` | ✅ live on Azure |
-| 5 | Monitoring dashboard | `submission/lakshitha-month5-monitoring.png` | ✅ local |
+| 5 | Monitoring dashboard | `submission/lakshitha-month5-monitoring.png` | ✅ production view |
 
 ## Assessment rubric
 
