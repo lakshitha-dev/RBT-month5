@@ -64,7 +64,7 @@ const panels = [
     's',
     [green(), amber(0.25), red(0.5)]
   ),
-  stat('Database', 16, 'min(pg_up)', 'none', [red(null), green(1)], {
+  stat('Database', 16, 'min(pg_up{env=~"$env"})', 'none', [red(null), green(1)], {
     mappings: [{ type: 'value', options: { 0: { text: 'DOWN' }, 1: { text: 'UP' } } }],
   }),
   stat('API uptime', 20, 'time() - max(process_start_time_seconds{job=~"blogflow-api.*", env=~"$env"})', 's', [green()]),
@@ -134,7 +134,7 @@ const panels = [
   series(
     'Postgres active connections',
     { x: 8, y: 21, w: 8, h: 8 },
-    [{ expr: 'sum by (datname) (pg_stat_database_numbackends{datname!~"template.*|postgres"})', legendFormat: '{{datname}}' }],
+    [{ expr: 'sum by (env, datname) (pg_stat_database_numbackends{datname!~"template.*|postgres", env=~"$env"})', legendFormat: '{{env}} {{datname}}' }],
     'short'
   ),
   series(
@@ -151,16 +151,16 @@ const panels = [
     title: 'API logs (warn / error)',
     gridPos: { x: 0, y: 29, w: 12, h: 10 },
     datasource: loki,
-    targets: [{ refId: 'A', datasource: loki, expr: '{service="backend", level=~"warn|error"}' }],
+    targets: [{ refId: 'A', datasource: loki, expr: '{service="backend", env=~"$env", level=~"warn|error"}' }],
     options: { showTime: true, wrapLogMessage: true, prettifyLogMessage: false, sortOrder: 'Descending', enableLogDetails: true },
   },
   {
     id: ++id,
     type: 'logs',
-    title: 'All container logs',
+    title: 'All service logs',
     gridPos: { x: 12, y: 29, w: 12, h: 10 },
     datasource: loki,
-    targets: [{ refId: 'A', datasource: loki, expr: '{service=~"backend|frontend|db"}' }],
+    targets: [{ refId: 'A', datasource: loki, expr: '{service=~"backend|frontend|db", env=~"$env"}' }],
     options: { showTime: true, wrapLogMessage: true, sortOrder: 'Descending', enableLogDetails: true },
   },
 ];

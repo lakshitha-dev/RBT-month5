@@ -68,28 +68,44 @@ Test it: `docker compose stop backend` → BackendDown fires after ~1–2 min �
 
 ## Monitoring production
 
-1. Save the API's `METRICS_TOKEN` (a Container Apps secret) into `monitoring/prometheus/prod-token` (gitignored):
-   `az containerapp secret show -n blogflow-api -g blogflow-rg --secret-name metrics-token --query value -o tsv`
-2. Uncomment the `blogflow-api-prod` job in `monitoring/prometheus/prometheus.yml`.
-   Scraping keeps the scale-to-zero API awake, so enable it while demoing rather than permanently.
-3. `curl -X POST http://localhost:9090/-/reload`
-4. Select `production` in the dashboard's Environment dropdown.
+The same Grafana dashboard watches production: pick **production** in its Environment dropdown. Every panel is
+filtered by an `env` label (`local` for the compose stack, `production` for Azure + Neon). It is opt-in because
+scraping keeps the scale-to-zero API and Neon's compute awake, which is billed as active time.
 
-Production logs (JSON lines, live stream):
+**One-time inputs (both gitignored):**
 
 ```bash
-az containerapp logs show -n blogflow-api -g blogflow-rg --type console --follow
+# the API's METRICS_TOKEN (a Container Apps secret) for the authenticated /metrics scrape
+az containerapp secret show -n blogflow-api -g blogflow-rg --secret-name metrics-token --query value -o tsv \
+  > monitoring/prometheus/prod-token
+# Neon connection string for the second postgres-exporter, in .env
+PROD_DATABASE_URL=postgresql://<user>:<password>@<neon-host>/blogflow?sslmode=require
 ```
 
-For retained, searchable logs attach a Log Analytics workspace to `blogflow-env`, or ship them to
-Grafana Cloud Loki; neither is enabled to keep production at ~$0/month.
+**Start watching production:**
+
+```bash
+PROMETHEUS_CONFIG=prometheus.prod.yml docker compose --profile monitoring --profile production up -d
+node scripts/prod-logs-to-loki.mjs        # forwards Azure's log stream into Loki as env="production"
+```
+
+| Signal | Production source |
+|--------|-------------------|
+| Request rate, errors, latency, CPU, memory, event loop, DB pool | `https://blogflow-api…/metrics` with the bearer token (job `blogflow-api-prod`) |
+| Postgres status and connections | `postgres-exporter-prod` → Neon (job `postgres-prod`) |
+| Logs | `az containerapp logs show --follow` → Alloy's push API (`127.0.0.1:3500`) → Loki, keeping each line's own timestamp |
+
+**Stop:** `docker compose --profile production rm -sf postgres-exporter-prod`, stop the log script, and run
+`docker compose --profile monitoring up -d` without `PROMETHEUS_CONFIG` to go back to local-only.
 
 ## Screenshot for submission
 
+`submission/lakshitha-month5-monitoring.png` is the dashboard in its production view while traffic ran against the
+live URL:
+
 ```bash
-docker compose --profile monitoring up -d
-node scripts/load-test.mjs http://localhost:8080 180
-# Grafana → BlogFlow — Service Overview → last 15 minutes → screenshot
+CONCURRENCY=1 node scripts/load-test.mjs https://blogflow-web.jollymeadow-32aadaf0.southeastasia.azurecontainerapps.io 240
+# Grafana → BlogFlow — Service Overview → Environment: production → last 15 minutes
 ```
 
-Save as `submission/lakshitha-month5-monitoring.png`.
+One load-test worker stays under production's rate limit (300 requests/min per IP).

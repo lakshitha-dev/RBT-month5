@@ -1,4 +1,5 @@
-// Collect stdout/stderr of the BlogFlow compose containers and ship them to Loki.
+// Collect stdout/stderr of the BlogFlow compose containers (env="local") and ship them to Loki.
+// Also accepts pushed logs on :3500 - scripts/prod-logs-to-loki.mjs forwards production there (env="production").
 
 discovery.docker "containers" {
   host = "unix:///var/run/docker.sock"
@@ -20,6 +21,10 @@ discovery.relabel "containers" {
     regex         = "/(.*)"
     target_label  = "container"
   }
+  rule {
+    target_label = "env"
+    replacement  = "local"
+  }
 }
 
 loki.source.docker "containers" {
@@ -27,6 +32,17 @@ loki.source.docker "containers" {
   targets       = discovery.relabel.containers.output
   relabel_rules = discovery.relabel.containers.rules
   forward_to    = [loki.process.json.receiver]
+}
+
+// pushed streams (Loki push API) - labels come from the sender
+loki.source.api "push" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 3500
+  }
+  // keep the time the line was written, not the time it arrived
+  use_incoming_timestamp = true
+  forward_to             = [loki.process.json.receiver]
 }
 
 // promote the winston `level` field to a label so Grafana can filter errors cheaply
