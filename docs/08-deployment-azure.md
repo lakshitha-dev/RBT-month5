@@ -77,7 +77,8 @@ image, the repo or the app's environment listing.
 
 GitHub signs in to Azure as a **user-assigned managed identity** through a federated
 credential, so there is no client secret to leak or rotate. The identity can only touch
-`blogflow-rg`.
+`blogflow-rg`. `scripts/setup-ci-deploy.ps1` runs all of the steps below (identity, OIDC trust,
+role, GitHub secrets and variables) and reports each one; it needs Owner on the subscription.
 
 ```bash
 az identity create -n blogflow-github-deploy -g blogflow-rg
@@ -126,6 +127,13 @@ az containerapp update -n blogflow-api -g blogflow-rg --image ghcr.io/lakshitha-
 ```
 
 …or re-run an older successful workflow run from the Actions tab.
+
+## Backups and restore
+
+- Neon keeps change history for point-in-time restore (6 hours on the free plan, configurable on paid
+  plans). Restore by branching at a past time, or `neonctl branches restore <branch> <branch>@<timestamp>`.
+- Portable copy: `pg_dump "$DATABASE_URL" -Fc -f blogflow-$(date +%F).dump`, restored with `pg_restore`.
+- The app itself is stateless: any `sha-<commit>` image can be redeployed, and migrations run on start.
 
 ## Operations
 
